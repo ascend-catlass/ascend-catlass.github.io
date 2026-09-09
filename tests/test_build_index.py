@@ -38,6 +38,7 @@ class BuildIndexTest(unittest.TestCase):
             page = (output / "simple" / "ascend-catlass-dsl" / "index.html").read_text()
             self.assertIn(f"#sha256={digest}", page)
             self.assertIn(wheels[0].name, page)
+            self.assertIn("--pre --extra-index-url", (output / "index.html").read_text())
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual(manifest["files"][0]["sha256"], digest)
 

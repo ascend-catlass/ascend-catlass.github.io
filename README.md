@@ -5,6 +5,7 @@ index backed by Wheel assets from `ascend-catlass/actions` releases.
 
 ```bash
 python -m pip install \
+  --pre \
   --extra-index-url https://ascend-catlass.github.io/simple/ \
   ascend-catlass-dsl
 ```

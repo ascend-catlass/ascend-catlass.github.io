@@ -95,7 +95,7 @@ def write_site(output: Path, wheels: list[Wheel]) -> None:
 <body>
   <h1>Ascend CATLASS Package Index</h1>
   <p>This is a supplemental Python package index backed by verified GitHub Release assets.</p>
-  <pre><code>python -m pip install --extra-index-url https://ascend-catlass.github.io/simple/ ascend-catlass-dsl</code></pre>
+  <pre><code>python -m pip install --pre --extra-index-url https://ascend-catlass.github.io/simple/ ascend-catlass-dsl</code></pre>
   <p><a href="simple/">Browse the Simple API</a></p>
 </body>
 </html>
