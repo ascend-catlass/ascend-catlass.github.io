@@ -55,10 +55,14 @@ def fetch_releases(repository: str = SOURCE_REPOSITORY) -> list[dict]:
 
 
 def collect_wheels(releases: list[dict]) -> list[Wheel]:
-    wheels: dict[str, Wheel] = {}
+    wheels: dict[str, tuple[tuple[str, int], Wheel]] = {}
     for release in releases:
         if release.get("draft"):
             continue
+        release_order = (
+            release.get("published_at") or release.get("created_at") or "",
+            release.get("id") or 0,
+        )
         for asset in release.get("assets", []):
             name = asset.get("name", "")
             if not (name.startswith(WHEEL_PREFIX) and name.endswith(".whl")):
@@ -73,13 +77,20 @@ def collect_wheels(releases: list[dict]) -> list[Wheel]:
                 sha256=digest_match.group(1),
             )
             previous = wheels.get(name)
-            if previous is not None and previous != wheel:
-                raise RuntimeError(f"Conflicting release assets share a filename: {name}")
-            wheels[name] = wheel
+            if previous is None or release_order > previous[0]:
+                wheels[name] = (release_order, wheel)
+            elif release_order == previous[0] and previous[1] != wheel:
+                raise RuntimeError(
+                    f"Conflicting release assets have the same publication order: {name}"
+                )
 
     if not wheels:
         raise RuntimeError(f"No {PACKAGE_NAME} wheels found in {SOURCE_REPOSITORY} releases")
-    return sorted(wheels.values(), key=lambda wheel: wheel.name, reverse=True)
+    return sorted(
+        (wheel for _, wheel in wheels.values()),
+        key=lambda wheel: wheel.name,
+        reverse=True,
+    )
 
 
 def write_site(output: Path, wheels: list[Wheel]) -> None:

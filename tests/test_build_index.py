@@ -57,6 +57,66 @@ class BuildIndexTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "SHA256"):
             build_index.collect_wheels(releases)
 
+    def test_prefers_newest_release_for_duplicate_filename(self) -> None:
+        name = "ascend_catlass_dsl-2.0.1.dev20260912-cp310-cp310-manylinux_2_28_aarch64.whl"
+        older = {
+            "id": 1,
+            "published_at": "2026-09-11T19:24:38Z",
+            "draft": False,
+            "assets": [
+                {
+                    "name": name,
+                    "browser_download_url": "https://example.invalid/older.whl",
+                    "digest": f"sha256:{'a' * 64}",
+                }
+            ],
+        }
+        newer = {
+            "id": 2,
+            "published_at": "2026-09-11T19:54:47Z",
+            "draft": False,
+            "assets": [
+                {
+                    "name": name,
+                    "browser_download_url": "https://example.invalid/newer.whl",
+                    "digest": f"sha256:{'b' * 64}",
+                }
+            ],
+        }
+
+        for releases in ([older, newer], [newer, older]):
+            with self.subTest(order=[release["id"] for release in releases]):
+                wheels = build_index.collect_wheels(releases)
+                self.assertEqual(
+                    wheels,
+                    [
+                        build_index.Wheel(
+                            name, "https://example.invalid/newer.whl", "b" * 64
+                        )
+                    ],
+                )
+
+    def test_rejects_ambiguous_duplicate_filename(self) -> None:
+        name = "ascend_catlass_dsl-2.0.1.dev20260912-cp310-cp310-manylinux_2_28_aarch64.whl"
+        releases = [
+            {
+                "id": 1,
+                "published_at": "2026-09-11T19:54:47Z",
+                "draft": False,
+                "assets": [
+                    {
+                        "name": name,
+                        "browser_download_url": f"https://example.invalid/{digest}.whl",
+                        "digest": f"sha256:{digest * 64}",
+                    }
+                ],
+            }
+            for digest in ("a", "b")
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "same publication order"):
+            build_index.collect_wheels(releases)
+
 
 if __name__ == "__main__":
     unittest.main()
