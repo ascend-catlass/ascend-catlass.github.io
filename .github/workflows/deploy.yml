@@ -24,12 +24,12 @@ jobs:
       - name: Test index generator
         run: python3 -m unittest discover -s tests -v
 
-  deploy:
+  # Upload in its own job so the artifact is finalized and indexed before the
+  # deploy job queries it. Running upload and deploy in the same job raced: the
+  # artifact was only queryable seconds after deploy-pages looked for it.
+  build:
     needs: test
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
       - name: Build PEP 503 index
@@ -42,6 +42,39 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+      actions: read
+    steps:
+      # deploy-pages fails with "Found 0 artifact(s)" when the artifact has not
+      # been indexed yet. Poll the same view it uses until github-pages exists.
+      - name: Wait until the Pages artifact is queryable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if gh api "repos/${REPO}/actions/runs/${RUN_ID}/artifacts" \
+                 --jq '.artifacts[].name' | grep -qx 'github-pages'; then
+              echo "github-pages artifact is visible (attempt ${attempt})."
+              exit 0
+            fi
+            echo "waiting for the github-pages artifact (attempt ${attempt}/40)..."
+            sleep 5
+          done
+          echo "::error::The github-pages artifact never became visible; cannot deploy." >&2
+          exit 1
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
